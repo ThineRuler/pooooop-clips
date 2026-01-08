@@ -1,0 +1,16 @@
+<div class="sidebar" id="sidebar">
+  <h2><a href="/">Home</a></h2>
+  <h3 class="sidebar-subheading">Friends</h3>
+  <ul>
+    <% users.forEach(friend => { %>
+      <li>
+        <a href="/<%= friend.name %>" class="friend-link">
+          <img class="friend-avatar" src="<%= friend.profilePicture || '/img/placeholder.jpg' %>" alt="<%= friend.name %>'s avatar" onerror="this.src='/img/placeholder.jpg'">
+          <span class="friend-name"><%= friend.name %></span>
+        </a>
+      </li>
+    <% }); %>
+  </ul>
+</div>
+<div class="main-content">
+  <button id="menu-toggle-btn" title="Toggle Menu">&#9776;</button>

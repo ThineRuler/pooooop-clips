@@ -1,0 +1,258 @@
+<%- include('partials/head', { pageTitle: 'Home' }) %>
+<%- include('partials/sidebar', { users: allUsers }) %>
+
+<!-- MODIFIED: The upload form is replaced with the search container -->
+<div class="search-container">
+    <h1>Search All Clips</h1>
+    <form id="search-form">
+        <input type="search" id="search-input" placeholder="Search for a clip by title..." required minlength="3">
+        <button type="submit" id="search-btn">Search</button>
+    </form>
+</div>
+
+<!-- NEW: This container will hold the search results -->
+<div id="search-results-container" class="gallery-container" style="display: none;">
+    <div class="gallery-controls">
+        <h2 id="search-results-heading">Search Results</h2>
+        <div>
+            <label for="sort-select">Sort by:</label>
+            <select id="sort-select">
+                <option value="date_desc">Date: Newest</option>
+                <option value="date_asc">Date: Oldest</option>
+                <option value="name">Name</option>
+            </select>
+        </div>
+    </div>
+    <div id="gallery"></div>
+    <div id="pagination-controls" class="pagination-controls">
+        <button id="prev-page-btn" title="Previous Page">&larr;</button>
+        <span id="page-info"></span>
+        <button id="next-page-btn" title="Next Page">&rarr;</button>
+    </div>
+</div>
+
+
+<% if (clipOfTheDay) { %>
+  <div class="container">
+    <h1>✨ Clip of the Day ✨</h1>
+    <div id="cotd-container" class="thumbnail-container" style="max-width: 800px; margin: 20px auto;">
+        <div class="thumbnail-wrapper" data-clip='<%- JSON.stringify(clipOfTheDay) %>'>
+            <img class="thumbnail-img" loading="lazy" src="<%= clipOfTheDay.thumbnail ? '/uploads/' + clipOfTheDay.user + '/' + clipOfTheDay.thumbnail : '/img/placeholder.jpg' %>" onerror="this.src='/img/placeholder.jpg'">
+            <div class="play-icon"></div>
+        </div>
+        <p id="cotd-info" class="clip-title" style="text-align: left; margin-top: 10px; font-size: 1.1em;">
+            <strong><%= clipOfTheDay.user %></strong> | <span><%= clipOfTheDay.title %></span>
+        </p>
+    </div>
+    <button id="gassy-btn" class="gassy-btn-style">I'm Feeling Gassy</button>
+  </div>
+<% } %>
+
+<div class="container">
+    <h2>Recently Uploaded</h2>
+    
+    <div id="recent-gallery">
+        <% if (locals.recentClips && recentClips.length > 0) { %>
+            <% recentClips.forEach(clip => { %>
+                <div class="thumbnail-container">
+                    <p class="clip-title" title="<%= clip.title %>">
+                         <%= clip.user %> | <%= clip.title %>
+                    </p>
+                    <div class="thumbnail-wrapper" data-clip='<%- JSON.stringify(clip) %>'>
+                        <img class="thumbnail-img" loading="lazy" 
+                             src="<%= clip.thumbnail ? '/uploads/' + clip.user + '/' + clip.thumbnail : '/img/placeholder.jpg' %>" 
+                             alt="<%= clip.title %>"
+                             onerror="this.src='/img/placeholder.jpg'">
+                        <div class="play-icon"></div>
+                    </div>
+                </div>
+            <% }); %>
+        <% } else { %>
+            <p>No clips uploaded yet.</p>
+        <% } %>
+    </div>
+</div>
+
+<div id="media-player-overlay" class="media-player-overlay">
+  <div class="media-player-container">
+    <video id="media-player-video" controls autoplay></video>
+  </div>
+</div>
+
+<script>
+  // --- COTD Elements and Logic ---
+  const gassyBtn = document.getElementById('gassy-btn');
+  const cotdWrapper = document.querySelector('#cotd-container .thumbnail-wrapper');
+  const cotdInfo = document.getElementById('cotd-info');
+  let allClipsForGassy = []; // Renamed to avoid confusion
+
+  // --- Search Elements and Logic ---
+  const searchForm = document.getElementById('search-form');
+  const searchInput = document.getElementById('search-input');
+  const searchResultsContainer = document.getElementById('search-results-container');
+  const searchResultsHeading = document.getElementById('search-results-heading');
+  const gallery = document.getElementById('gallery');
+  const sortSelect = document.getElementById('sort-select');
+  const prevPageBtn = document.getElementById('prev-page-btn');
+  const nextPageBtn = document.getElementById('next-page-btn');
+  const pageInfo = document.getElementById('page-info');
+  
+  // --- Global Elements and State ---
+  const mediaPlayerOverlay = document.getElementById('media-player-overlay');
+  const mediaPlayerVideo = document.getElementById('media-player-video');
+  let searchResults = [];
+  const CLIPS_PER_PAGE = 16;
+  let currentPage = 1;
+
+  // --- Functions ---
+  function openMediaPlayer(clip) {
+    mediaPlayerVideo.src = `/uploads/${clip.user}/${clip.filename}`;
+    mediaPlayerOverlay.classList.add('visible');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeMediaPlayer() {
+    mediaPlayerVideo.pause();
+    mediaPlayerVideo.src = '';
+    mediaPlayerOverlay.classList.remove('visible');
+    document.body.style.overflow = '';
+  }
+
+  function renderSearchResults() {
+    const sortBy = sortSelect.value;
+    const sortedClips = [...searchResults].sort((a, b) => {
+      if (sortBy === 'name') return a.title.localeCompare(b.title);
+      if (sortBy === 'date_asc') return a.createdAt - b.createdAt;
+      return b.createdAt - a.createdAt;
+    });
+    
+    const startIndex = (currentPage - 1) * CLIPS_PER_PAGE;
+    const endIndex = startIndex + CLIPS_PER_PAGE;
+    const paginatedClips = sortedClips.slice(startIndex, endIndex);
+
+    gallery.innerHTML = '';
+    if (paginatedClips.length === 0) {
+        gallery.innerHTML = '<p>No clips found matching your search.</p>';
+    }
+
+    paginatedClips.forEach(clip => {
+        const thumbContainer = document.createElement('div');
+        thumbContainer.className = 'thumbnail-container';
+
+        // Note: No kebab menu or editing on the homepage search results for simplicity
+        const titleEl = document.createElement('p');
+        titleEl.className = 'clip-title';
+        titleEl.textContent = `${clip.user} | ${clip.title}`;
+        titleEl.title = `${clip.user} | ${clip.title}`;
+
+        const thumbWrapper = document.createElement('div');
+        thumbWrapper.className = 'thumbnail-wrapper';
+        thumbWrapper.dataset.clip = JSON.stringify(clip); 
+        
+        const img = document.createElement('img');
+        img.className = 'thumbnail-img';
+        img.loading = 'lazy'; // Optimization
+        img.src = clip.thumbnail ? `/uploads/${clip.user}/${clip.thumbnail}` : '/img/placeholder.jpg';
+        img.alt = clip.title;
+        img.onerror = () => { img.src = '/img/placeholder.jpg'; };
+
+        const playIcon = document.createElement('div');
+        playIcon.className = 'play-icon';
+
+        thumbWrapper.appendChild(img);
+        thumbWrapper.appendChild(playIcon);
+        
+        thumbContainer.appendChild(titleEl);
+        thumbContainer.appendChild(thumbWrapper);
+        gallery.appendChild(thumbContainer);
+    });
+    updatePaginationControls(sortedClips.length);
+  }
+
+  function updatePaginationControls(totalClips) {
+    const totalPages = Math.ceil(totalClips / CLIPS_PER_PAGE);
+    const paginationControls = document.getElementById('pagination-controls');
+    
+    if (totalPages <= 1) {
+      paginationControls.style.display = 'none';
+    } else {
+      paginationControls.style.display = 'flex';
+      pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+      prevPageBtn.disabled = currentPage === 1;
+      nextPageBtn.disabled = currentPage === totalPages;
+    }
+  }
+
+  // --- Event Listeners ---
+  searchForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const query = searchInput.value.trim();
+    if (!query) return;
+
+    searchResultsContainer.style.display = 'block';
+    gallery.innerHTML = '<p>Searching...</p>';
+    
+    try {
+        const response = await fetch(`/search?q=${encodeURIComponent(query)}`);
+        const clips = await response.json();
+        searchResults = clips;
+        currentPage = 1;
+        searchResultsHeading.textContent = `Found ${clips.length} results for "${query}"`;
+        renderSearchResults();
+    } catch (err) {
+        gallery.innerHTML = '<p>An error occurred during search. Please try again.</p>';
+        console.error("Search failed:", err);
+    }
+  });
+
+  sortSelect.addEventListener('change', renderSearchResults);
+  prevPageBtn.addEventListener('click', () => { if (currentPage > 1) { currentPage--; renderSearchResults(); } });
+  nextPageBtn.addEventListener('click', () => { const totalPages = Math.ceil(searchResults.length / CLIPS_PER_PAGE); if (currentPage < totalPages) { currentPage++; renderSearchResults(); } });
+
+  gallery.addEventListener('click', (event) => {
+      const thumbWrapper = event.target.closest('.thumbnail-wrapper');
+      if (thumbWrapper && thumbWrapper.dataset.clip) {
+          openMediaPlayer(JSON.parse(thumbWrapper.dataset.clip));
+      }
+  });
+
+  const recentGallery = document.getElementById('recent-gallery');
+  if (recentGallery) {
+      recentGallery.addEventListener('click', (event) => {
+          const thumbWrapper = event.target.closest('.thumbnail-wrapper');
+          if (thumbWrapper && thumbWrapper.dataset.clip) {
+              openMediaPlayer(JSON.parse(thumbWrapper.dataset.clip));
+          }
+      });
+  }
+
+  if (cotdWrapper) {
+      cotdWrapper.addEventListener('click', () => openMediaPlayer(JSON.parse(cotdWrapper.dataset.clip)));
+  }
+
+  mediaPlayerOverlay.addEventListener('click', (event) => {
+    if (event.target === mediaPlayerOverlay) closeMediaPlayer();
+  });
+
+  if (gassyBtn) {
+    gassyBtn.addEventListener('click', () => {
+      if (allClipsForGassy.length === 0) return;
+      const randomClip = allClipsForGassy[Math.floor(Math.random() * allClipsForGassy.length)];
+      const thumbImg = document.querySelector('#cotd-container .thumbnail-img');
+      if (thumbImg && cotdWrapper && cotdInfo) {
+        thumbImg.src = randomClip.thumbnail ? `/uploads/${randomClip.user}/${randomClip.thumbnail}` : '/img/placeholder.jpg';
+        cotdWrapper.dataset.clip = JSON.stringify(randomClip);
+        cotdInfo.innerHTML = `<strong>${randomClip.user}</strong> | <span>${randomClip.title}</span>`;
+      }
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    fetch('/api/all-clips')
+      .then(res => res.json())
+      .then(data => { allClipsForGassy = data; })
+      .catch(err => console.error("Could not fetch all clips list:", err));
+  });
+</script>
+
+<%- include('partials/footer') %>

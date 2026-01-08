@@ -1,0 +1,104 @@
+<div class="container">
+  <h1>Upload a Clip</h1>
+  <form id="upload-form">
+    <%# The user dropdown is now built dynamically from server data %>
+    <select name="userName" required>
+      <option value="" disabled <%= !pageOwner ? 'selected' : '' %>>-- Select Your Name --</option>
+      <% allUsers.forEach(userObj => { %>
+        <option value="<%= userObj.name %>" <%= (pageOwner === userObj.name) ? 'selected' : '' %>><%= userObj.name %></option>
+      <% }); %>
+    </select>
+    <input type="file" id="file-input" name="clip" required multiple>
+    <br><br>
+    <input type="submit" value="Upload Clip">
+  </form>
+
+  <div class="progress-bar-container">
+    <div id="progress-bar"></div>
+  </div>
+  <div id="progress-text"></div>
+</div>
+
+<script>
+  const uploadForm = document.getElementById('upload-form');
+  const fileInput = document.getElementById('file-input');
+  const nameSelect = uploadForm.querySelector('select[name="userName"]');
+  const submitBtn = uploadForm.querySelector('input[type="submit"]');
+  const progressBarContainer = document.querySelector('.progress-bar-container');
+  const progressBar = document.getElementById('progress-bar');
+  const progressText = document.getElementById('progress-text');
+
+  const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB Chunks (Safe for Cloudflare)
+
+  uploadForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    
+    const files = fileInput.files;
+    const userName = nameSelect.value;
+    const totalFiles = files.length;
+
+    if (totalFiles === 0 || !userName) {
+        if (!userName) alert("Please select your name.");
+        return;
+    }
+
+    progressBarContainer.style.display = 'block';
+    progressBar.style.width = '0%';
+    submitBtn.disabled = true;
+
+    for (let i = 0; i < totalFiles; i++) {
+        const file = files[i];
+        const uniqueFileId = Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        
+        progressText.textContent = `Starting upload for ${file.name}...`;
+
+        try {
+            for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+                const start = chunkIndex * CHUNK_SIZE;
+                const end = Math.min(start + CHUNK_SIZE, file.size);
+                const chunk = file.slice(start, end);
+
+                const formData = new FormData();
+                formData.append('userName', userName);
+                formData.append('fileId', uniqueFileId);
+                formData.append('fileName', file.name);
+                formData.append('chunkIndex', chunkIndex);
+                formData.append('totalChunks', totalChunks);
+                formData.append('chunk', chunk, file.name);
+
+                // Upload chunk
+                await fetch('/upload-chunk', {
+                    method: 'POST',
+                    body: formData
+                }).then(res => {
+                    if (!res.ok) throw new Error("Chunk upload failed");
+                    return res.json();
+                });
+
+                // Update UI
+                const overallProgress = ((chunkIndex + 1) / totalChunks) * 100;
+                progressBar.style.width = `${overallProgress}%`;
+                progressText.textContent = `Uploading ${file.name} (${Math.round(overallProgress)}%) - File ${i + 1} of ${totalFiles}`;
+            }
+
+            progressText.textContent = `Processing ${file.name}... (This may take a moment)`;
+            // Wait a small delay to ensure server processing logic catches up if needed
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+        } catch (error) {
+            console.error(`Failed to upload ${file.name}:`, error);
+            progressText.textContent = `Error with ${file.name}: ${error.message}.`;
+            // Stop uploading on error
+            submitBtn.disabled = false;
+            return;
+        }
+    }
+
+    progressText.textContent = `All files processed! Refreshing...`;
+    submitBtn.disabled = false;
+    setTimeout(() => {
+        window.location.reload();
+    }, 1500);
+  });
+</script>

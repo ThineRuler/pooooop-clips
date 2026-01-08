@@ -1,0 +1,297 @@
+body { font-family: sans-serif; background: #2c2f33; color: white; margin: 0; }
+
+/* --- General Content Styles --- */
+.container, .gallery-container { max-width: 1400px; margin: 20px auto; background: #23272a; padding: 20px; border-radius: 8px; text-align: center; }
+#gallery, #pinned-gallery, #recent-gallery { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); 
+    gap: 20px; }
+#gallery { margin-top: 20px; }
+
+/* --- NEW: Search Container Styles --- */
+.search-container {
+    background: #23272a;
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+    margin: 20px auto;
+    max-width: 1400px;
+}
+#search-input {
+    width: 70%;
+    max-width: 500px;
+    padding: 12px;
+    font-size: 1.1em;
+    border-right: none;
+}
+#search-btn {
+    padding: 12px 20px;
+    margin-left: 5px;
+}
+#profile-search-input {
+    padding: 10px;
+    width: 100%;
+    font-size: 1.1em;
+    box-sizing: border-box;
+}
+#search-results-container h2 {
+    margin: 0;
+    text-align: left;
+}
+
+
+/* --- Thumbnail Styles --- */
+.thumbnail-container { background: #36393f; border-radius: 5px; padding: 10px; position: relative; overflow: visible; }
+.thumbnail-wrapper { position: relative; cursor: pointer; }
+.thumbnail-img { width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 5px; display: block; }
+.play-icon { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 50px; height: 50px; background-color: rgba(0, 0, 0, 0.6); border-radius: 50%; display: flex; justify-content: center; align-items: center; opacity: 0; transition: opacity 0.2s ease; z-index: 5; }
+.play-icon::after { content: '▶'; font-size: 24px; color: white; margin-left: 4px; }
+.thumbnail-wrapper:hover .play-icon { opacity: 1; }
+
+/* --- Sidebar Styles --- */
+.sidebar { width: 200px; background: #23272a; height: 100vh; padding: 20px; box-sizing: border-box; position: fixed; top: 0; left: 0; z-index: 100; }
+.sidebar h2 { margin-top: 30px; margin-bottom: 0; text-align: right; }
+.sidebar h2 a {
+    color: white;
+    text-decoration: none;
+}
+.sidebar-subheading {
+    margin: 20px 0 0;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #40444b;
+    text-align: left;
+}
+.sidebar ul { list-style: none; padding: 0; }
+.sidebar ul li a { color: #dcddde; text-decoration: none; display: block; padding: 10px 15px; border-radius: 5px; font-weight: bold; }
+.sidebar ul li a:hover { background: #36393f; }
+.sidebar ul li a.friend-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.friend-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0; /* Prevents avatar from shrinking if name is long */
+    background-color: #40444b; /* Shows a background color for broken/missing images */
+}
+.main-content { padding: 20px; height: 100vh; overflow-y: auto; box-sizing: border-box; }
+
+/* Progress bar */
+.progress-bar-container { background: #40444b; border-radius: 5px; padding: 4px; display: none; margin-top: 15px; }
+#progress-bar { background: #7289da; height: 15px; width: 0%; border-radius: 3px; transition: width 0.2s; }
+#progress-text { margin-top: 5px; font-size: 0.9em; }
+
+/* --- Profile Stats Styles --- */
+.stats-container { display: flex; justify-content: center; gap: 40px; margin-bottom: 20px; }
+.stat-item { background: #36393f; padding: 15px 25px; border-radius: 8px; }
+.stat-item h3 { margin: 0; color: #7289da; }
+.stat-item p { margin: 5px 0 0; font-size: 1.2em; font-weight: bold; }
+
+/* --- Profile PFP --- */
+.profile-pfp {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-bottom: 15px;
+    border: 4px solid #40444b;
+}
+
+/* --- Pinned Gallery --- */
+.pinned-gallery-container {
+    margin-bottom: 20px;
+    /* Adjust padding to remove horizontal spacing, aligning it with the main gallery. */
+    padding: 20px 0;
+    background: #23272a;
+    border-radius: 8px;
+}
+.pinned-gallery-container h3 {
+    text-align: center;
+    margin-top: 0;
+    border-bottom: 1px solid #40444b;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+/* #pinned-gallery is now styled with #gallery */
+
+/* --- Form and Button Styles --- */
+input, select, button { background-color: #40444b; color: #dcddde; border: 1px solid #202225; border-radius: 5px; padding: 10px; font-family: sans-serif; font-size: 1em; vertical-align: middle; }
+input[type="submit"], .download-btn, #gassy-btn, .pagination-controls button, #generate-thumbnails-btn { cursor: pointer; background: #7289da; color: white; font-weight: bold; border: none; }
+.pagination-controls button:disabled, #generate-thumbnails-btn:disabled { background: #40444b; cursor: not-allowed; opacity: 0.6; }
+input[type="submit"]:hover, .download-btn:hover, #gassy-btn:hover, .pagination-controls button:not(:disabled):hover, #generate-thumbnails-btn:not(:disabled):hover { background: #677bc4; }
+input[type="file"] { background: none; border: none; }
+input[type="file"]::file-selector-button { background-color: #7289da; color: white; font-weight: bold; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; margin-right: 10px; transition: background-color 0.2s; }
+input[type="file"]::file-selector-button:hover { background-color: #677bc4; }
+
+/* --- Gallery Controls, Title & Kebab Menu --- */
+.gallery-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+
+/* Center the controls on the profile page where it's the only element */
+.gallery-controls > div:first-child:last-child {
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+    max-width: 500px;
+}
+.status-message { min-height: 1.2em; margin: 0 0 10px; font-style: italic; color: #999; }
+.clip-title { font-weight: bold; text-align: left; margin: 0 0 8px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.clip-actions {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    z-index: 10;
+    display: flex;
+    gap: 5px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+}
+.thumbnail-container:hover .clip-actions { opacity: 1; pointer-events: auto; }
+.kebab-menu, .tags-menu { position: relative; }
+.kebab-btn, .tags-btn { background: rgba(0,0,0,0.5); border-radius: 50%; border: none; color: white; font-size: 1.2em; cursor: pointer; padding: 5px; line-height: 1; width: 30px; height: 30px; display: flex; justify-content: center; align-items: center; }
+.tags-btn {
+    font-size: 1.6em;
+    line-height: 0.8; /* Better '+' alignment */
+}
+.menu-options { display: none; position: absolute; right: 0; top: 100%; margin-top: 5px; background-color: #2c2f33; border: 1px solid #40444b; border-radius: 5px; z-index: 20; min-width: 150px; overflow: hidden; }
+.kebab-menu.visible .menu-options { display: block; }
+.menu-options button, .menu-options a { display: block; width: 100%; background: none; border: none; color: #dcddde; text-align: left; padding: 10px 15px; cursor: pointer; text-decoration: none; box-sizing: border-box; }
+.menu-options button:hover, .menu-options a:hover { background-color: #36393f; }
+.menu-options .delete-option:hover { background-color: #f04747; color: white; }
+.menu-options .pin-option:hover { background-color: #7289da; color: white; }
+
+/* --- Sidebar Toggle Styles --- */
+#menu-toggle-btn { position: fixed; top: 40px; left: 20px; font-size: 1.5em; z-index: 1000; background: #23272a; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; }
+.sidebar { transition: transform 0.3s ease-in-out; }
+body.sidebar-hidden .sidebar { transform: translateX(-100%); }
+#gassy-btn { margin-top: 15px; font-weight: bold; }
+
+/* --- Pagination Styles --- */
+.pagination-controls { margin-top: 30px; display: flex; justify-content: center; align-items: center; gap: 15px; }
+#page-info { font-size: 1.1em; font-weight: bold; }
+
+/* --- Media Player Overlay Styles --- */
+.media-player-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.85); display: flex; justify-content: center; align-items: center; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
+.media-player-overlay.visible { opacity: 1; pointer-events: auto; }
+.media-player-container { position: relative; width: 80%; max-width: 1200px; max-height: 80%; }
+.media-player-container video { width: 100%; height: 100%; max-height: 80vh; object-fit: contain; }
+.media-player-close-btn { display: none; }
+
+/* --- Tags Submenu Styles --- */
+.tags-submenu {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 5px;
+    background-color: #2c2f33;
+    border: 1px solid #202225;
+    border-radius: 5px;
+    z-index: 21;
+    min-width: 260px; /* INCREASED: Wider to fit content */
+    padding: 0;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    overflow: hidden;
+}
+.tags-submenu.visible {
+    display: block;
+}
+.tags-list {
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 5px 0;
+}
+
+/* Custom Scrollbar */
+.tags-list::-webkit-scrollbar { width: 6px; }
+.tags-list::-webkit-scrollbar-track { background: #2c2f33; }
+.tags-list::-webkit-scrollbar-thumb { background: #202225; border-radius: 3px; }
+.tags-list::-webkit-scrollbar-thumb:hover { background: #40444b; }
+
+/* OPTIMIZED: Tag Row Layout */
+.tag-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: nowrap; /* CRITICAL: Prevents button from dropping to next line */
+    padding: 6px 10px; /* More breathing room */
+    transition: background-color 0.1s;
+    gap: 10px; /* Force space between text and button */
+}
+.tag-row:hover {
+    background-color: #36393f;
+}
+
+.tag-label { 
+    display: flex; 
+    align-items: center;
+    cursor: pointer; 
+    color: #dcddde; 
+    flex: 1; /* Take up all remaining space */
+    min-width: 0; /* Allows text truncation to work inside flex item */
+    font-size: 0.95em;
+}
+.tag-label input[type="checkbox"] { 
+    margin-right: 8px; 
+    cursor: pointer; 
+    flex-shrink: 0; /* Prevent checkbox squishing */
+}
+.tag-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis; /* Adds "..." if tag is too long */
+    display: block;
+}
+
+/* REFINED: Delete Tag Button Style */
+.delete-tag-btn {
+    flex-shrink: 0; /* Do not let this button shrink */
+    width: 24px;
+    height: 24px;
+    background: transparent; /* Remove default gray background */
+    border: 1px solid transparent; /* Invisible border for spacing */
+    color: #72767d;
+    font-size: 1.2em;
+    line-height: 1;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+    opacity: 0; /* Hidden by default */
+    transition: all 0.2s ease;
+}
+
+/* Only show delete button when hovering the ROW */
+.tag-row:hover .delete-tag-btn {
+    opacity: 1;
+}
+
+.delete-tag-btn:hover {
+    background-color: #ed4245; /* Red background on hover */
+    color: white;
+}
+
+.create-tag-section { 
+    padding: 10px; 
+    border-top: 1px solid #202225; 
+    background-color: #2f3136;
+}
+.create-tag-input { 
+    width: 100%; 
+    box-sizing: border-box; 
+    padding: 8px;
+    background-color: #202225;
+    border: 1px solid #202225;
+    color: #dcddde;
+    border-radius: 4px;
+    outline: none;
+    font-size: 0.95em;
+}
+.create-tag-input:focus {
+    border-color: #7289da;
+}

@@ -1,0 +1,11 @@
+# Ignore the massive video uploads (local only)
+uploads/*
+!uploads/.gitkeep
+
+# Ignore system files
+node_modules/
+.DS_Store
+thumbs.db
+
+# Ignore secrets/env files (Safety)
+.env

@@ -1,0 +1,497 @@
+<%- include('partials/head', { pageTitle: userName + "'s Clips" }) %>
+<%- include('partials/sidebar', { users: allUsers }) %>
+<%- include('partials/upload-form', { pageOwner: userName, allUsers: allUsers }) %>
+
+<div class="gallery-container">
+  <% const currentUser = allUsers.find(u => u.name === userName); %>
+  <img src="<%= (currentUser && currentUser.profilePicture) || '/img/placeholder.jpg' %>" alt="<%= userName %>'s profile picture" class="profile-pfp" onerror="this.src='/img/placeholder.jpg'">
+  <h2><%= userName %>'s Clips</h2>
+  <div class="stats-container">
+    <div class="stat-item"><h3>Total Clips</h3><p><%= stats.clipCount %></p></div>
+    <div class="stat-item"><h3>Total Duration</h3><p><%= stats.totalDuration %></p></div>
+  </div>
+
+  <% if (pinnedClips && pinnedClips.length > 0) { %>
+    <div class="pinned-gallery-container">
+      <h3>Pinned Clips</h3>
+      <div id="pinned-gallery">
+        <% pinnedClips.forEach(clip => { %>
+          <div class="thumbnail-container">
+            <p class="clip-title" title="Edit title: <%= clip.title %>"><%= clip.title %></p>
+            <div class="thumbnail-wrapper" data-clip='<%- JSON.stringify(clip) %>'>
+              <img class="thumbnail-img" loading="lazy" src="<%= clip.thumbnail ? '/uploads/' + userName + '/' + clip.thumbnail : '/img/placeholder.jpg' %>" alt="<%= clip.title %>" onerror="this.src='/img/placeholder.jpg'">
+              <div class="play-icon"></div>
+            </div>
+            <div class="clip-actions">
+              <div class="tags-menu">
+                <button class="tags-btn">+</button>
+                <div class="tags-submenu"></div>
+              </div>
+              <div class="kebab-menu">
+                <button class="kebab-btn">&#8942;</button>
+                <div class="menu-options">
+                  <a href="/uploads/<%= userName %>/<%= clip.filename %>" download="<%= clip.filename %>">Download</a>
+                  <button class="pin-option" data-filename="<%= clip.filename %>">Unpin</button>
+                  <button class="delete-option" data-filename="<%= clip.filename %>">Delete</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+    </div>
+  <% } %>
+
+  <div class="gallery-controls">
+    <div>
+        <input type="search" id="profile-search-input" placeholder="Search <%= userName %>'s clips...">
+        <div style="margin-top: 10px;">
+            <label for="sort-select">Sort by:</label>
+            <select id="sort-select">
+                <option value="date_desc">Date: Newest</option>
+                <option value="date_asc">Date: Oldest</option>
+                <option value="name">Name</option>
+            </select>
+        </div>
+    </div>
+  </div>
+
+  <div id="gallery"></div>
+
+  <div id="pagination-controls" class="pagination-controls">
+    <button id="prev-page-btn" title="Previous Page">&larr;</button>
+    <span id="page-info"></span>
+    <button id="next-page-btn" title="Next Page">&rarr;</button>
+  </div>
+</div>
+
+<div id="media-player-overlay" class="media-player-overlay">
+  <div class="media-player-container">
+    <video id="media-player-video" controls autoplay></video>
+  </div>
+</div>
+
+<script>
+  // --- Element Selectors ---
+  const sortSelect = document.getElementById('sort-select');
+  const gallery = document.getElementById('gallery');
+  const prevPageBtn = document.getElementById('prev-page-btn');
+  const nextPageBtn = document.getElementById('next-page-btn');
+  const pageInfo = document.getElementById('page-info');
+  const mediaPlayerOverlay = document.getElementById('media-player-overlay');
+  const mediaPlayerVideo = document.getElementById('media-player-video');
+  const profileSearchInput = document.getElementById('profile-search-input');
+
+  // --- State Variables ---
+  let currentClips = <%- JSON.stringify(clips) %>;
+  const allTags = <%- JSON.stringify(allTags) %>;
+  const userName = "<%= userName %>";
+  const CLIPS_PER_PAGE = 16;
+  let currentPage = 1;
+
+  // --- Utility: Debounce Function ---
+  // Returns a function that, as long as it continues to be invoked, will not
+  // be triggered. The function will be called after it stops being called for
+  // N milliseconds.
+  function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  }
+
+  // --- Functions ---
+  function openMediaPlayer(clip) {
+    mediaPlayerVideo.src = `/uploads/${userName}/${clip.filename}`;
+    mediaPlayerOverlay.classList.add('visible');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeMediaPlayer() {
+    mediaPlayerVideo.pause();
+    mediaPlayerVideo.src = '';
+    mediaPlayerOverlay.classList.remove('visible');
+    document.body.style.overflow = '';
+  }
+
+  function togglePin(clip, shouldPin) {
+    fetch('/pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user: userName, filename: clip.filename, pin: shouldPin })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) window.location.reload();
+        else alert('Failed to update pin status.');
+    });
+  }
+
+  function updateClipTag(clip, tag, isAdding) {
+    fetch('/api/tags/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user: userName, filename: clip.filename, tag: tag, isAdding: isAdding })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            const clipInState = currentClips.find(c => c.filename === clip.filename);
+            if (clipInState) clipInState.tags = data.updatedTags;
+            const thumbWrapper = document.querySelector(`.thumbnail-wrapper[data-clip*='"${clip.filename}"']`);
+            if (thumbWrapper) {
+                const clipData = JSON.parse(thumbWrapper.dataset.clip);
+                clipData.tags = data.updatedTags;
+                thumbWrapper.dataset.clip = JSON.stringify(clipData);
+            }
+        } else alert('Failed to update tag.');
+    });
+  }
+
+  function createNewTag(tagName, clip, kebabMenuElement) {
+    fetch('/api/tags/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newTag: tagName })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            allTags.splice(0, allTags.length, ...data.allTags);
+            populateTagsMenu(clip, kebabMenuElement);
+        } else alert(`Failed: ${data.message}`);
+    });
+  }
+
+  // Function to delete a tag globally
+  function deleteGlobalTag(tagName, clip, menuElement) {
+    if (!confirm(`Are you sure you want to delete the tag "${tagName}"? This will remove it from ALL clips.`)) return;
+
+    fetch('/api/tags/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tag: tagName })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            // Update global tags list
+            allTags.splice(0, allTags.length, ...data.allTags);
+            
+            // Remove this tag from ALL local clip objects so the UI stays consistent
+            currentClips.forEach(c => {
+                if (c.tags) {
+                    c.tags = c.tags.filter(t => t !== tagName);
+                }
+            });
+
+            // Re-render the menu to show it's gone
+            populateTagsMenu(clip, menuElement);
+        } else {
+            alert(data.message || 'Failed to delete tag.');
+        }
+    })
+    .catch(err => console.error(err));
+  }
+
+  // New HTML structure with delete buttons and no create button
+  function populateTagsMenu(clip, menuElement) {
+    const submenu = menuElement.querySelector('.tags-submenu');
+    if (!submenu) return;
+
+    let tagsListHtml = '<div class="tags-list">';
+    
+    if (allTags.length === 0) {
+        tagsListHtml += '<div style="padding:10px; text-align:center; color:#72767d; font-size:0.9em;">No tags created yet.</div>';
+    } else {
+        tagsListHtml += allTags.map(tag => {
+            const isChecked = clip.tags && clip.tags.includes(tag);
+            return `
+                <div class="tag-row">
+                    <label class="tag-label" title="${tag}">
+                        <input type="checkbox" class="tag-checkbox" data-tag="${tag}" ${isChecked ? 'checked' : ''}>
+                        <span class="tag-text">${tag}</span>
+                    </label>
+                    <button class="delete-tag-btn" data-tag="${tag}" title="Delete tag globally">&times;</button>
+                </div>
+            `;
+        }).join('');
+    }
+    tagsListHtml += '</div>';
+
+    // Footer with just the input
+    const createTagHtml = `
+        <div class="create-tag-section">
+            <input type="text" class="create-tag-input" placeholder="Create new tag">
+        </div>`;
+    
+    submenu.innerHTML = tagsListHtml + createTagHtml;
+
+    // Attach Listeners
+    // 1. Checkbox changes (Toggle tag on clip)
+    submenu.querySelectorAll('.tag-checkbox').forEach(cb => {
+        cb.addEventListener('change', e => updateClipTag(clip, e.target.dataset.tag, e.target.checked));
+    });
+
+    // 2. Delete button clicks (Delete tag globally)
+    submenu.querySelectorAll('.delete-tag-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+            e.stopPropagation(); // Prevent menu from closing
+            deleteGlobalTag(e.target.dataset.tag, clip, menuElement);
+        });
+    });
+
+    // 3. Create Input (Enter key only)
+    const createInput = submenu.querySelector('.create-tag-input');
+    // Focus input automatically if there are no tags, otherwise let user browse
+    if (allTags.length === 0) setTimeout(() => createInput.focus(), 100);
+
+    createInput.addEventListener('keydown', e => { 
+        if (e.key === 'Enter' && createInput.value.trim()) {
+            createNewTag(createInput.value.trim(), clip, menuElement);
+        }
+        // Prevent menu closing if they hit space or other keys
+        e.stopPropagation(); 
+    });
+    
+    // Prevent clicks inside the input from closing the menu (handled by global click listener, but good safety)
+    createInput.addEventListener('click', e => e.stopPropagation());
+  }
+
+  function enableTitleEdit(clip, titleEl) {
+    const newTitleInput = document.createElement('input');
+    newTitleInput.type = 'text';
+    newTitleInput.className = 'clip-title';
+    newTitleInput.value = clip.title;
+    titleEl.replaceWith(newTitleInput);
+    newTitleInput.focus();
+    newTitleInput.select();
+
+    const saveChanges = () => {
+        const newTitle = newTitleInput.value.trim();
+        if (!newTitle || newTitle === clip.title) {
+            newTitleInput.replaceWith(titleEl);
+            return;
+        }
+        fetch('/rename', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user: userName, oldFilename: clip.filename, newTitle: newTitle })
+        }).then(res => res.json()).then(data => {
+            if (data.success) {
+                const clipIndex = currentClips.findIndex(c => c.filename === clip.filename);
+                if(clipIndex > -1){
+                    currentClips[clipIndex].filename = data.newFilename;
+                    currentClips[clipIndex].title = data.newTitle;
+                    currentClips[clipIndex].thumbnail = `${data.newFilename}.jpg`;
+                }
+                renderGallery();
+            } else newTitleInput.replaceWith(titleEl);
+        });
+    };
+    newTitleInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') saveChanges();
+        else if (event.key === 'Escape') newTitleInput.replaceWith(titleEl);
+    });
+    newTitleInput.addEventListener('blur', saveChanges);
+  }
+
+  function renderGallery() {
+    const searchTerm = profileSearchInput.value.toLowerCase();
+    const filteredClips = currentClips.filter(clip =>
+      clip.title.toLowerCase().includes(searchTerm) ||
+      (clip.tags && clip.tags.some(tag => tag.toLowerCase().includes(searchTerm)))
+    );
+
+    const sortBy = sortSelect.value;
+    const sortedClips = [...filteredClips].sort((a, b) => {
+      if (sortBy === 'name') return a.title.localeCompare(b.title);
+      if (sortBy === 'date_asc') return a.createdAt - b.createdAt;
+      return b.createdAt - a.createdAt;
+    });
+    
+    const startIndex = (currentPage - 1) * CLIPS_PER_PAGE;
+    const endIndex = startIndex + CLIPS_PER_PAGE;
+    const paginatedClips = sortedClips.slice(startIndex, endIndex);
+
+    gallery.innerHTML = '';
+    if (paginatedClips.length === 0) {
+        gallery.innerHTML = searchTerm ? '<p>No clips found matching your search.</p>' : '<p>This user has no clips yet.</p>';
+    }
+
+    paginatedClips.forEach(clip => {
+        const thumbContainer = document.createElement('div');
+        thumbContainer.className = 'thumbnail-container';
+
+        const titleEl = document.createElement('p');
+        titleEl.className = 'clip-title';
+        titleEl.textContent = clip.title;
+        titleEl.title = `Edit title: ${clip.title}`;
+        titleEl.addEventListener('click', (e) => { e.stopPropagation(); enableTitleEdit(clip, titleEl); });
+
+        const thumbWrapper = document.createElement('div');
+        thumbWrapper.className = 'thumbnail-wrapper';
+        thumbWrapper.dataset.clip = JSON.stringify(clip); 
+        
+        const img = document.createElement('img');
+        img.className = 'thumbnail-img';
+        img.loading = 'lazy';
+        img.src = clip.thumbnail ? `/uploads/${userName}/${clip.thumbnail}` : '/img/placeholder.jpg';
+        img.alt = clip.title;
+        img.onerror = () => { img.src = '/img/placeholder.jpg'; };
+
+        const playIcon = document.createElement('div');
+        playIcon.className = 'play-icon';
+        
+        const clipActions = document.createElement('div');
+        clipActions.className = 'clip-actions';
+
+        const tagsMenu = document.createElement('div');
+        tagsMenu.className = 'tags-menu';
+        tagsMenu.innerHTML = `<button class="tags-btn">+</button><div class="tags-submenu"></div>`;
+
+        const kebabMenu = document.createElement('div');
+        kebabMenu.className = 'kebab-menu';
+        const kebabBtn = document.createElement('button');
+        kebabBtn.className = 'kebab-btn';
+        kebabBtn.innerHTML = '&#8942;';
+
+        const menuOptions = document.createElement('div');
+        menuOptions.className = 'menu-options';
+        
+        const downloadLink = document.createElement('a');
+        downloadLink.href = `/uploads/${userName}/${clip.filename}`;
+        downloadLink.textContent = 'Download';
+        downloadLink.download = clip.filename;
+
+        const pinBtn = document.createElement('button');
+        pinBtn.className = 'pin-option';
+        pinBtn.textContent = 'Pin';
+        pinBtn.addEventListener('click', () => togglePin(clip, true));
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-option';
+        deleteBtn.textContent = 'Delete';
+        let deleteTimeout;
+        deleteBtn.addEventListener('click', () => {
+          if (deleteBtn.classList.contains('confirm-delete')) {
+            clearTimeout(deleteTimeout);
+            fetch('/delete', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ user: userName, file: clip.filename })
+            }).then(res => res.json()).then(data => {
+              if (data.success) {
+                currentClips = currentClips.filter(c => c.filename !== clip.filename);
+                renderGallery();
+              } else console.error('Error deleting file.');
+            });
+          } else {
+            deleteBtn.classList.add('confirm-delete');
+            deleteBtn.textContent = 'Delete?';
+            deleteTimeout = setTimeout(() => {
+              deleteBtn.classList.remove('confirm-delete');
+              deleteBtn.textContent = 'Delete';
+            }, 3000);
+          }
+        });
+
+        menuOptions.appendChild(downloadLink);
+        menuOptions.appendChild(pinBtn);
+        menuOptions.appendChild(deleteBtn);
+        kebabMenu.appendChild(kebabBtn);
+        kebabMenu.appendChild(menuOptions);
+        thumbWrapper.appendChild(img);
+        thumbWrapper.appendChild(playIcon);
+        clipActions.appendChild(tagsMenu);
+        clipActions.appendChild(kebabMenu);
+        thumbContainer.appendChild(titleEl);
+        thumbContainer.appendChild(thumbWrapper);
+        thumbContainer.appendChild(clipActions);
+        gallery.appendChild(thumbContainer);
+    });
+    updatePaginationControls(sortedClips.length);
+  }
+
+  function updatePaginationControls(totalClips) {
+    const totalPages = Math.ceil(totalClips / CLIPS_PER_PAGE);
+    const paginationControls = document.getElementById('pagination-controls');
+    
+    if (totalPages <= 1) {
+      paginationControls.style.display = 'none';
+    } else {
+      paginationControls.style.display = 'flex';
+      pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+      prevPageBtn.disabled = currentPage === 1;
+      nextPageBtn.disabled = currentPage === totalPages;
+    }
+  }
+
+  // --- OPTIMIZED: Debounced Input Listener ---
+  profileSearchInput.addEventListener('input', debounce(() => {
+    currentPage = 1;
+    renderGallery();
+  }, 300)); // 300ms delay
+
+  sortSelect.addEventListener('change', () => { currentPage = 1; renderGallery(); });
+  prevPageBtn.addEventListener('click', () => { currentPage--; renderGallery(); });
+  nextPageBtn.addEventListener('click', () => { currentPage++; renderGallery(); });
+  
+  mediaPlayerOverlay.addEventListener('click', (event) => { if (event.target === mediaPlayerOverlay) closeMediaPlayer(); });
+
+  document.addEventListener('click', (event) => {
+    const target = event.target;
+    const thumbWrapper = target.closest('.thumbnail-wrapper');
+    if (thumbWrapper && thumbWrapper.dataset.clip && !target.closest('.kebab-menu')) {
+      openMediaPlayer(JSON.parse(thumbWrapper.dataset.clip));
+    }
+
+    if (!target.closest('.kebab-menu') && !target.closest('.tags-menu')) {
+      document.querySelectorAll('.kebab-menu.visible').forEach(menu => menu.classList.remove('visible'));
+      document.querySelectorAll('.tags-submenu.visible').forEach(sm => sm.classList.remove('visible'));
+    }
+
+    if (target.classList.contains('kebab-btn')) {
+      event.stopPropagation();
+      const kebabMenu = target.closest('.kebab-menu');
+      document.querySelectorAll('.kebab-menu.visible').forEach(menu => { if (menu !== kebabMenu) menu.classList.remove('visible'); });
+      document.querySelectorAll('.tags-submenu.visible').forEach(sm => sm.classList.remove('visible'));
+      kebabMenu.classList.toggle('visible');
+    }
+
+    if (target.classList.contains('tags-btn')) {
+        event.stopPropagation();
+        const tagsMenu = target.closest('.tags-menu');
+        const submenu = tagsMenu.querySelector('.tags-submenu');
+        const isVisible = submenu.classList.contains('visible');
+        document.querySelectorAll('.tags-submenu.visible').forEach(sm => { if (sm !== submenu) sm.classList.remove('visible'); });
+        document.querySelectorAll('.kebab-menu.visible').forEach(km => km.classList.remove('visible'));
+        submenu.classList.toggle('visible');
+        if (!isVisible) {
+            const thumbContainer = tagsMenu.closest('.thumbnail-container');
+            const wrapper = thumbContainer.querySelector('.thumbnail-wrapper');
+            populateTagsMenu(JSON.parse(wrapper.dataset.clip), tagsMenu);
+        }
+    }
+
+    if (target.classList.contains('pin-option') && target.closest('#pinned-gallery')) {
+      togglePin({ filename: target.dataset.filename }, false);
+    }
+
+    if (target.classList.contains('delete-option') && target.closest('#pinned-gallery')) {
+        if (confirm(`Are you sure you want to delete this clip?`)) {
+            fetch('/delete', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: userName, file: target.dataset.filename })})
+            .then(res => res.json()).then(data => { if (data.success) window.location.reload(); });
+        }
+    }
+  });
+
+  renderGallery();
+</script>
+
+<%- include('partials/footer') %>

@@ -1,0 +1,17 @@
+services:
+  web:
+    build: .
+    container_name: my-node-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./uploads:/app/uploads
+      - .:/app
+      - /app/node_modules
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflare-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token eyJhIjoiNGE2OWM5YmZmYzcwODI3MzI1ZTZlYzRmNjRiY2E3MjMiLCJ0IjoiOGFmZjhlYTMtZWNhNS00ZDE4LThmYjgtNjkzN2MxMTEzNDJhIiwicyI6Ik1XSTRNekkyTjJRdFltVm1ZaTAwWVRCaExUazBaR010WkdRNE9UUXhOMlZqTkdNMSJ9
