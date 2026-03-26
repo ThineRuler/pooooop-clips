@@ -10,5 +10,6 @@ thumbs.db
 # Ignore secrets/env files (Safety)
 .env
 
-# COTD also ignored
+# .jsons also ignored
 cotd.json
+durations.json
